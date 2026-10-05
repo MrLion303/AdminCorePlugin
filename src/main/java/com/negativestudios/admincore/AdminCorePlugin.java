@@ -190,10 +190,20 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
 
 
     private void handleLanguage(Player player, String[] args) {
-        if (args.length == 1 && args[0].equalsIgnoreCase("help")) {
-            showHelp(player);
+        if (args.length >= 1 && args[0].equalsIgnoreCase("help")) {
+            int page = 1;
+            if (args.length >= 2) {
+                try {
+                    page = Integer.parseInt(args[1]);
+                } catch (NumberFormatException ignored) {
+                    message(player, "&cNúmero de página no válido.", "&cInvalid page number.");
+                    return;
+                }
+            }
+            showHelp(player, page);
             return;
         }
+
         if (args.length != 2 || !args[0].equalsIgnoreCase("lenguage")) {
             message(player,
                     "&eUso: &f/admincore lenguage <español|English>",
@@ -384,39 +394,64 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         player.setPlayerListName(vanished.contains(uuid) && vanishTab.contains(uuid) ? "" : shown);
     }
 
-    private void showHelp(Player player) {
-        boolean english = isEnglish(player);
-        message(player, english ? "&bComandos de AdminCore:" : "&bComandos de AdminCore:");
-        if (english) {
-            message(player, "&f/vanish &7- Hide from non-OP players.");
-            message(player, "&f/vanish all &7- Hide from everyone, including OPs.");
-            message(player, "&f/vanish tab &7- Hide your name in the tab list.");
-            message(player, "&f/vanish all tab &7- Combine both vanish options.");
-            message(player, "&f/nick <name|off> &7- Change or restore your displayed name.");
-            message(player, "&f/incognito &7- Use a changing random-style name.");
-            message(player, "&f/hidenick &7- Hide/show your name above your head.");
-            message(player, "&f/blockinfo &7- Show who placed the block you are looking at.");
-            message(player, "&f/invsee <player> &7- Open and edit a player's inventory.");
-            message(player, "&f/ecsee <player> &7- Open and edit a player's ender chest.");
-            message(player, "&f/sign "message" &7- Receive a sign with a saved message.");
-            message(player, "&f/setsign <material> &7- Set your default sign type.");
-            message(player, "&f/admincore lenguage <español|English> &7- Change your language.");
-            message(player, "&f/admincore help &7- Show this help.");
-        } else {
-            message(player, "&f/vanish &7- Ocultarte de jugadores que no sean OP.");
-            message(player, "&f/vanish all &7- Ocultarte de todos, incluidos los OP.");
-            message(player, "&f/vanish tab &7- Ocultar tu nombre del tabulador.");
-            message(player, "&f/vanish all tab &7- Combinar ambas opciones de vanish.");
-            message(player, "&f/nick <nombre|off> &7- Cambiar o restaurar tu nombre mostrado.");
-            message(player, "&f/incognito &7- Usar un nombre aleatorio que cambia.");
-            message(player, "&f/hidenick &7- Ocultar/mostrar tu nombre sobre la cabeza.");
-            message(player, "&f/blockinfo &7- Mostrar quién colocó el bloque que miras.");
-            message(player, "&f/invsee <jugador> &7- Abrir y editar el inventario de un jugador.");
-            message(player, "&f/ecsee <jugador> &7- Abrir y editar el ender chest de un jugador.");
-            message(player, "&f/sign "mensaje" &7- Recibir un letrero con un mensaje guardado.");
-            message(player, "&f/setsign <material> &7- Establecer tu tipo de letrero predeterminado.");
-            message(player, "&f/admincore lenguage <español|English> &7- Cambiar tu idioma.");
-            message(player, "&f/admincore help &7- Mostrar esta ayuda.");
+    private void showHelp(Player player, int page) {
+        String[][] spanish = {
+                {"/vanish", "Ocultarte de jugadores que no sean OP."},
+                {"/vanish all", "Ocultarte de todos, incluidos los OP."},
+                {"/vanish tab", "Ocultar tu nombre del tabulador."},
+                {"/vanish all tab", "Combinar ambas opciones de vanish."},
+                {"/nick <nombre|off>", "Cambiar o restaurar tu nombre mostrado."},
+                {"/incognito", "Usar un nombre aleatorio que cambia."},
+                {"/hidenick", "Ocultar o mostrar tu nombre sobre la cabeza."},
+                {"/blockinfo", "Mostrar quién colocó el bloque que miras."},
+                {"/invsee <jugador>", "Abrir y editar el inventario de un jugador."},
+                {"/ecsee <jugador>", "Abrir y editar el ender chest de un jugador."},
+                {"/sign \"mensaje\"", "Recibir un letrero con un mensaje guardado."},
+                {"/setsign <material>", "Establecer tu tipo de letrero predeterminado."},
+                {"/admincore lenguage <español|English>", "Cambiar tu idioma."},
+                {"/admincore help [página]", "Mostrar la ayuda paginada."}
+        };
+
+        String[][] english = {
+                {"/vanish", "Hide from non-OP players."},
+                {"/vanish all", "Hide from everyone, including OPs."},
+                {"/vanish tab", "Hide your name from the tab list."},
+                {"/vanish all tab", "Combine both vanish options."},
+                {"/nick <name|off>", "Change or restore your displayed name."},
+                {"/incognito", "Use a changing random-style name."},
+                {"/hidenick", "Hide or show your name above your head."},
+                {"/blockinfo", "Show who placed the block you are looking at."},
+                {"/invsee <player>", "Open and edit a player's inventory."},
+                {"/ecsee <player>", "Open and edit a player's ender chest."},
+                {"/sign \"message\"", "Receive a sign with a saved message."},
+                {"/setsign <material>", "Set your default sign type."},
+                {"/admincore lenguage <español|English>", "Change your language."},
+                {"/admincore help [page]", "Show the paginated help."}
+        };
+
+        String[][] commands = isEnglish(player) ? english : spanish;
+        int perPage = 5;
+        int totalPages = (int) Math.ceil(commands.length / (double) perPage);
+
+        if (page < 1 || page > totalPages) {
+            message(player,
+                    "&cLa página debe estar entre &f1 &cy &f" + totalPages + "&c.",
+                    "&cThe page must be between &f1 &cand &f" + totalPages + "&c.");
+            return;
+        }
+
+        int start = (page - 1) * perPage;
+        int end = Math.min(start + perPage, commands.length);
+
+        message(player, "&bComandos de AdminCore &7- &fPágina " + page + "/" + totalPages);
+        for (int i = start; i < end; i++) {
+            message(player, "&f" + commands[i][0] + " &7- " + commands[i][1]);
+        }
+
+        if (page < totalPages) {
+            message(player,
+                    "&7Usa &f/admincore help " + (page + 1) + " &7para ver la siguiente página.",
+                    "&7Use &f/admincore help " + (page + 1) + " &7to see the next page.");
         }
     }
 
