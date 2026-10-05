@@ -435,24 +435,36 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
 
         if (page < 1 || page > totalPages) {
             message(player,
-                    "&cLa página debe estar entre &f1 &cy &f" + totalPages + "&c.",
-                    "&cThe page must be between &f1 &cand &f" + totalPages + "&c.");
+                    "&c&l✦ &cLa página debe estar entre &f&l1 &cy &f&l" + totalPages + "&c.",
+                    "&c&l✦ &cThe page must be between &f&l1 &cand &f&l" + totalPages + "&c.");
             return;
         }
 
         int start = (page - 1) * perPage;
         int end = Math.min(start + perPage, commands.length);
 
-        message(player, "&bComandos de AdminCore &7- &fPágina " + page + "/" + totalPages);
+        player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        player.sendMessage(color("&b&l✦ ADMINCORE &8» &f&lAYUDA &7(" + page + "/" + totalPages + ")"));
+        player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+
         for (int i = start; i < end; i++) {
-            message(player, "&f" + commands[i][0] + " &7- " + commands[i][1]);
+            player.sendMessage(color("&8▸ &b&l" + commands[i][0] + " &8— &7" + commands[i][1]));
         }
 
-        if (page < totalPages) {
-            message(player,
-                    "&7Usa &f/admincore help " + (page + 1) + " &7para ver la siguiente página.",
-                    "&7Use &f/admincore help " + (page + 1) + " &7to see the next page.");
+        player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+
+        if (page > 1 && page < totalPages) {
+            player.sendMessage(color("&7« &f&l/admincore help " + (page - 1)
+                    + " &8| &f&l/admincore help " + (page + 1) + " &7»"));
+        } else if (page > 1) {
+            player.sendMessage(color("&7« &f&l/admincore help " + (page - 1)));
+        } else if (page < totalPages) {
+            player.sendMessage(color("&f&l/admincore help " + (page + 1) + " &7»"));
+        } else {
+            player.sendMessage(color("&8• &7No hay más comandos en esta página."));
         }
+
+        player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
     }
 
     private void showBlockInfo(Player player) {
