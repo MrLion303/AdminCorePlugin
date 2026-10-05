@@ -38,7 +38,10 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private final Map<UUID, UUID> inventoryOwners = new HashMap<>();
     private final Map<UUID, Inventory> openedEnderChests = new HashMap<>();
     private final Map<UUID, UUID> enderChestOwners = new HashMap<>();
+    private final Map<UUID, Language> languages = new HashMap<>();
     private NamespacedKey signMessageKey;
+
+    private enum Language { SPANISH, ENGLISH }
 
     private File dataFile;
     private YamlConfiguration data;
@@ -50,7 +53,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         signMessageKey = new NamespacedKey(this, "sign_message");
         loadData();
 
-        String[] commands = {"vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign"};
+        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign"};
         for (String name : commands) {
             PluginCommand command = getCommand(name);
             if (command != null) {
@@ -90,6 +93,15 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             } catch (Exception ignored) {
             }
         }
+
+        if (data.getConfigurationSection("languages") != null) {
+            for (String key : data.getConfigurationSection("languages").getKeys(false)) {
+                try {
+                    languages.put(UUID.fromString(key), Language.valueOf(data.getString("languages." + key)));
+                } catch (Exception ignored) {
+                }
+            }
+        }
     }
 
     private void saveData() {
@@ -100,11 +112,22 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         for (Map.Entry<UUID, Material> entry : signMaterials.entrySet()) {
             data.set("sign-defaults." + entry.getKey(), entry.getValue().name());
         }
+        for (Map.Entry<UUID, Language> entry : languages.entrySet()) {
+            data.set("languages." + entry.getKey(), entry.getValue().name());
+        }
         try {
             data.save(dataFile);
         } catch (IOException e) {
             getLogger().warning("No se pudo guardar data.yml: " + e.getMessage());
         }
+    }
+
+    private Language getLanguage(Player player) {
+        return languages.getOrDefault(player.getUniqueId(), Language.SPANISH);
+    }
+
+    private boolean isEnglish(Player player) {
+        return getLanguage(player) == Language.ENGLISH;
     }
 
     private boolean isAdmin(CommandSender sender) {
@@ -113,7 +136,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             return false;
         }
         if (!player.isOp()) {
-            player.sendMessage(color("&cNo tienes permiso para usar esta función."));
+            player.sendMessage(color(isEnglish(player) ? "&cYou do not have permission to use this feature." : "&cNo tienes permiso para usar esta función."));
             return false;
         }
         return true;
@@ -123,12 +146,29 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         return ChatColor.translateAlternateColorCodes('&', text);
     }
 
+    private void message(Player player, String spanish, String english) {
+        message(player, isEnglish(player) ? english : spanish);
+    }
+
     private void message(Player player, String text) {
         player.sendMessage(color("&8[&bAdminCore&8] " + text));
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("admincore")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage(color("&cEste comando solo puede usarlo un jugador."));
+                return true;
+            }
+            if (!player.isOp()) {
+                player.sendMessage(color(isEnglish(player) ? "&cYou do not have permission to use this command." : "&cNo tienes permiso para usar este comando."));
+                return true;
+            }
+            handleLanguage(player, args);
+            return true;
+        }
+
         if (!isAdmin(sender)) return true;
         Player player = (Player) sender;
 
@@ -146,56 +186,80 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         return true;
     }
 
+
+    private void handleLanguage(Player player, String[] args) {
+        if (args.length != 2 || !args[0].equalsIgnoreCase("lenguage")) {
+            message(player,
+                    "&eUso: &f/admincore lenguage <español|English>",
+                    "&eUsage: &f/admincore lenguage <español|English>");
+            return;
+        }
+
+        if (args[1].equalsIgnoreCase("español") || args[1].equalsIgnoreCase("spanish")) {
+            languages.put(player.getUniqueId(), Language.SPANISH);
+            saveData();
+            message(player, "&aIdioma cambiado a &fEspañol&a.", "&aLanguage changed to &fSpanish&a.");
+        } else if (args[1].equalsIgnoreCase("english")) {
+            languages.put(player.getUniqueId(), Language.ENGLISH);
+            saveData();
+            message(player, "&aIdioma cambiado a &fEnglish&a.", "&aLanguage changed to &fEnglish&a.");
+        } else {
+            message(player,
+                    "&cIdioma no válido. Usa &fEspañol &co &fEnglish&c.",
+                    "&cInvalid language. Use &fEspañol &cor &fEnglish&c.");
+        }
+    }
+
     private void toggleVanish(Player player) {
         if (vanished.remove(player.getUniqueId())) {
             for (Player target : Bukkit.getOnlinePlayers()) target.showPlayer(this, player);
-            message(player, "&aVanish desactivado.");
+            message(player, "&aVanish desactivado.", "&aVanish disabled.");
         } else {
             vanished.add(player.getUniqueId());
             for (Player target : Bukkit.getOnlinePlayers()) {
                 if (!target.isOp() || target.equals(player)) target.hidePlayer(this, player);
             }
-            message(player, "&aVanish activado. &7Los jugadores no OP no podrán verte.");
+            message(player, "&aVanish activado. &7Los jugadores no OP no podrán verte.", "&aVanish enabled. &7Non-OP players will not be able to see you.");
         }
     }
 
     private void handleNick(Player player, String[] args) {
         if (args.length == 0) {
-            message(player, "&eUso: &f/nick <nombre|off>");
+            message(player, "&eUso: &f/nick <nombre|off>", "&eUsage: &f/nick <name|off>");
             return;
         }
 
         if (args[0].equalsIgnoreCase("off")) {
             nicknames.remove(player.getUniqueId());
             applyName(player);
-            message(player, "&aNombre personalizado desactivado.");
+            message(player, "&aNombre personalizado desactivado.", "&aCustom name disabled.");
             return;
         }
 
         String nickname = String.join(" ", args);
         if (nickname.length() > 16) {
-            message(player, "&cEl nombre no puede superar 16 caracteres.");
+            message(player, "&cEl nombre no puede superar 16 caracteres.", "&cThe name cannot exceed 16 characters.");
             return;
         }
 
         nicknames.put(player.getUniqueId(), nickname);
         incognito.remove(player.getUniqueId());
         applyName(player);
-        message(player, "&aAhora apareces como &f" + nickname + "&a.");
+        message(player, "&aAhora apareces como &f" + nickname + "&a.", "&aYou now appear as &f" + nickname + "&a.");
     }
 
     private void toggleIncognito(Player player) {
         UUID uuid = player.getUniqueId();
         if (incognito.remove(uuid)) {
             applyName(player);
-            message(player, "&aModo incógnito desactivado.");
+            message(player, "&aModo incógnito desactivado.", "&aIncognito mode disabled.");
             return;
         }
 
         incognito.add(uuid);
         nicknames.remove(uuid);
         applyName(player);
-        message(player, "&aModo incógnito activado.");
+        message(player, "&aModo incógnito activado.", "&aIncognito mode enabled.");
     }
 
     private String randomIncognitoName() {
@@ -211,11 +275,11 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         UUID uuid = player.getUniqueId();
         if (hiddenNick.remove(uuid)) {
             setNameTagVisible(player, true);
-            message(player, "&aTu nickname vuelve a mostrarse sobre tu cabeza.");
+            message(player, "&aTu nickname vuelve a mostrarse sobre tu cabeza.", "&aYour nickname is visible above your head again.");
         } else {
             hiddenNick.add(uuid);
             setNameTagVisible(player, false);
-            message(player, "&aTu nickname está oculto sobre tu cabeza.");
+            message(player, "&aTu nickname está oculto sobre tu cabeza.", "&aYour nickname is hidden above your head.");
         }
     }
 
@@ -247,7 +311,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private void showBlockInfo(Player player) {
         Block block = getTargetBlock(player, 100);
         if (block == null || block.getType().isAir()) {
-            message(player, "&cNo estás mirando un bloque válido.");
+            message(player, "&cNo estás mirando un bloque válido.", "&cYou are not looking at a valid block.");
             return;
         }
 
@@ -255,12 +319,12 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         String owner = placedBlocks.get(key);
 
         if (owner == null) {
-            message(player, "&eNo tengo registrado quién colocó este bloque.");
+            message(player, "&eNo tengo registrado quién colocó este bloque.", "&eI do not have a record of who placed this block.");
             return;
         }
 
-        message(player, "&7Bloque: &f" + block.getType().name());
-        message(player, "&7Colocado por: &b" + owner);
+        message(player, "&7Bloque: &f" + block.getType().name(), "&7Block: &f" + block.getType().name());
+        message(player, "&7Colocado por: &b" + owner, "&7Placed by: &b" + owner);
     }
 
     private Block getTargetBlock(Player player, int maxDistance) {
@@ -344,14 +408,14 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
 
     private void openInventory(Player viewer, String[] args) {
         if (args.length != 1) {
-            message(viewer, "&eUso: &f/invsee <jugador>");
+            message(viewer, "&eUso: &f/invsee <jugador>", "&eUsage: &f/invsee <player>");
             return;
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
-            message(viewer, "&cEl jugador debe estar conectado para abrir su inventario en tiempo real.");
-            message(viewer, "&7La edición de inventarios offline requiere acceso NMS específico de 1.20.1.");
+            message(viewer, "&cEl jugador debe estar conectado para abrir su inventario en tiempo real.", "&cThe player must be online to open their inventory in real time.");
+            message(viewer, "&7La edición de inventarios offline requiere acceso NMS específico de 1.20.1.", "&7Offline inventory editing requires 1.20.1-specific NMS access.");
             return;
         }
 
@@ -359,19 +423,19 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         viewer.openInventory(inventory);
         openedInventories.put(viewer.getUniqueId(), inventory);
         inventoryOwners.put(viewer.getUniqueId(), target.getUniqueId());
-        message(viewer, "&aInventario de &f" + target.getName() + "&a abierto.");
+        message(viewer, "&aInventario de &f" + target.getName() + "&a abierto.", "&aInventory of &f" + target.getName() + "&a opened.");
     }
 
     private void openEnderChest(Player viewer, String[] args) {
         if (args.length != 1) {
-            message(viewer, "&eUso: &f/ecsee <jugador>");
+            message(viewer, "&eUso: &f/ecsee <jugador>", "&eUsage: &f/ecsee <player>");
             return;
         }
 
         Player target = Bukkit.getPlayerExact(args[0]);
         if (target == null) {
-            message(viewer, "&cEl jugador debe estar conectado para abrir su ender chest en tiempo real.");
-            message(viewer, "&7La edición offline requiere acceso NMS específico de 1.20.1.");
+            message(viewer, "&cEl jugador debe estar conectado para abrir su ender chest en tiempo real.", "&cThe player must be online to open their ender chest in real time.");
+            message(viewer, "&7La edición offline requiere acceso NMS específico de 1.20.1.", "&7Offline editing requires 1.20.1-specific NMS access.");
             return;
         }
 
@@ -379,7 +443,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         viewer.openInventory(inventory);
         openedEnderChests.put(viewer.getUniqueId(), inventory);
         enderChestOwners.put(viewer.getUniqueId(), target.getUniqueId());
-        message(viewer, "&aEnder chest de &f" + target.getName() + "&a abierto.");
+        message(viewer, "&aEnder chest de &f" + target.getName() + "&a abierto.", "&aEnder chest of &f" + target.getName() + "&a opened.");
     }
 
     private void giveSign(Player player, String[] args) {
@@ -404,12 +468,12 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         }
 
         player.getInventory().addItem(sign);
-        message(player, "&aHas recibido un &f" + material.name() + "&a.");
+        message(player, "&aHas recibido un &f" + material.name() + "&a.", "&aYou received a &f" + material.name() + "&a.");
     }
 
     private void setSign(Player player, String[] args) {
         if (args.length != 1) {
-            message(player, "&eUso: &f/setsign <material>");
+            message(player, "&eUso: &f/setsign <material>", "&eUsage: &f/setsign <material>");
             return;
         }
 
@@ -417,13 +481,13 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         Material material = Material.matchMaterial(input);
 
         if (material == null || !material.name().endsWith("_SIGN")) {
-            message(player, "&cEse material no es un letrero válido.");
+            message(player, "&cEse material no es un letrero válido.", "&cThat material is not a valid sign.");
             return;
         }
 
         signMaterials.put(player.getUniqueId(), material);
         saveData();
-        message(player, "&aTu letrero predeterminado ahora es &f" + material.name() + "&a.");
+        message(player, "&aTu letrero predeterminado ahora es &f" + material.name() + "&a.", "&aYour default sign is now &f" + material.name() + "&a.");
     }
 
     @Override
