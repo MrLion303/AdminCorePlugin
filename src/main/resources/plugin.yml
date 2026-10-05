@@ -1,10 +1,10 @@
 name: AdminCorePlugin
 version: ${version}
 main: com.negativestudios.admincore.AdminCorePlugin
-api-version: '1.20'
+api-version: '${apiVersion}'
 author: LAYON
 website: LAYON
-description: Herramientas administrativas para servidores Paper y Spigot 1.20.1.
+description: Herramientas administrativas para servidores Paper y Spigot ${targetLabel}.
 
 commands:
   admincore:
