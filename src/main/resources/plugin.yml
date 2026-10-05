@@ -6,6 +6,9 @@ author: LAYON
 description: Herramientas administrativas para servidores Paper y Spigot 1.20.1.
 
 commands:
+  admincore:
+    description: Configura el idioma de AdminCore.
+    usage: /admincore lenguage <español|English>
   vanish:
     description: Activa o desactiva el modo vanish.
     usage: /vanish
