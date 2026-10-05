@@ -1,0 +1,40 @@
+name: AdminCorePlugin
+version: ${version}
+main: com.negativestudios.admincore.AdminCorePlugin
+api-version: '1.20'
+author: LAYON
+description: Herramientas administrativas para servidores Paper y Spigot 1.20.1.
+
+commands:
+  vanish:
+    description: Activa o desactiva el modo vanish.
+    usage: /vanish
+  nick:
+    description: Cambia temporalmente el nombre mostrado.
+    usage: /nick <nombre|off>
+  incognito:
+    description: Activa o desactiva el nombre incognito.
+    usage: /incognito
+  hidenick:
+    description: Oculta o muestra tu nombre sobre la cabeza.
+    usage: /hidenick
+  blockinfo:
+    description: Muestra quien coloco el bloque que estas mirando.
+    usage: /blockinfo
+  invsee:
+    description: Abre el inventario de un jugador.
+    usage: /invsee <jugador>
+  ecsee:
+    description: Abre el ender chest de un jugador.
+    usage: /ecsee <jugador>
+  sign:
+    description: Recibe un letrero con un mensaje.
+    usage: /sign "mensaje"
+  setsign:
+    description: Establece tu letrero predeterminado.
+    usage: /setsign <material>
+
+permissions:
+  admincore.admin:
+    default: op
+    description: Acceso completo a AdminCorePlugin.
