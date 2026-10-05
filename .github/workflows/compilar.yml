@@ -25,34 +25,28 @@ jobs:
           gradle-version: '9.1.0'
 
       - name: Compilar AdminCore 1.20.x
-        run: gradle clean build --no-daemon -Ptarget=1.20
-
-      - name: Guardar AdminCore 1.20.x
-        uses: actions/upload-artifact@v4
-        with:
-          name: AdminCorePlugin-1.20.x
-          path: build/libs/AdminCorePlugin-1.20.x.jar
-
-      - name: Limpiar compilacion 1.21.x
-        run: gradle clean
+        run: |
+          gradle clean build --no-daemon -Ptarget=1.20
+          mkdir -p dist
+          cp build/libs/AdminCorePlugin-1.20.x.jar dist/
 
       - name: Compilar AdminCore 1.21.x
-        run: gradle build --no-daemon -Ptarget=1.21
-
-      - name: Guardar AdminCore 1.21.x
-        uses: actions/upload-artifact@v4
-        with:
-          name: AdminCorePlugin-1.21.x
-          path: build/libs/AdminCorePlugin-1.21.x.jar
-
-      - name: Limpiar compilacion 26.3
-        run: gradle clean
+        run: |
+          gradle clean build --no-daemon -Ptarget=1.21
+          cp build/libs/AdminCorePlugin-1.21.x.jar dist/
 
       - name: Compilar AdminCore 26.3
-        run: gradle build --no-daemon -Ptarget=26.3
+        run: |
+          gradle clean build --no-daemon -Ptarget=26.3
+          cp build/libs/AdminCorePlugin-26.3.jar dist/
 
-      - name: Guardar AdminCore 26.3
+      - name: Verificar JAR generados
+        run: ls -lh dist/
+
+      - name: Subir los tres JAR
         uses: actions/upload-artifact@v4
         with:
-          name: AdminCorePlugin-26.3
-          path: build/libs/AdminCorePlugin-26.3.jar
+          name: AdminCorePlugin
+          path: dist/*.jar
+          if-no-files-found: error
+          retention-days: 30
