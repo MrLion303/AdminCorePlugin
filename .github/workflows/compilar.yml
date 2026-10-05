@@ -13,22 +13,46 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Configurar Java 17
+      - name: Configurar Java 25
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '25'
 
       - name: Configurar Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.8'
 
-      - name: Compilar plugin
-        run: gradle clean build --no-daemon
+      - name: Compilar AdminCore 1.20.x
+        run: gradle clean build --no-daemon -Ptarget=1.20
 
-      - name: Subir plugin compilado
+      - name: Guardar AdminCore 1.20.x
         uses: actions/upload-artifact@v4
         with:
-          name: AdminCorePlugin
-          path: build/libs/*.jar
+          name: AdminCorePlugin-1.20.x
+          path: build/libs/AdminCorePlugin-1.20.x.jar
+
+      - name: Limpiar compilacion 1.21.x
+        run: gradle clean
+
+      - name: Compilar AdminCore 1.21.x
+        run: gradle build --no-daemon -Ptarget=1.21
+
+      - name: Guardar AdminCore 1.21.x
+        uses: actions/upload-artifact@v4
+        with:
+          name: AdminCorePlugin-1.21.x
+          path: build/libs/AdminCorePlugin-1.21.x.jar
+
+      - name: Limpiar compilacion 26.3
+        run: gradle clean
+
+      - name: Compilar AdminCore 26.3
+        run: gradle build --no-daemon -Ptarget=26.3
+
+      - name: Guardar AdminCore 26.3
+        uses: actions/upload-artifact@v4
+        with:
+          name: AdminCorePlugin-26.3
+          path: build/libs/AdminCorePlugin-26.3.jar
