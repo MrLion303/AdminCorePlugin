@@ -650,6 +650,15 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             return result;
         }
 
+        if (name.equals("admincore") && args.length == 2 && args[0].equalsIgnoreCase("help")) {
+            List<String> result = new ArrayList<>();
+            for (int page = 1; page <= 3; page++) {
+                String option = String.valueOf(page);
+                if (option.startsWith(args[1])) result.add(option);
+            }
+            return result;
+        }
+
         if (name.equals("vanish") && args.length >= 1) {
             List<String> result = new ArrayList<>();
             for (String option : Arrays.asList("all", "tab")) {
