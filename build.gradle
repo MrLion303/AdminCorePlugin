@@ -52,4 +52,5 @@ processResources {
 
 tasks.named('jar') {
     archiveBaseName = 'AdminCorePlugin-' + targetInfo.label
+    archiveVersion = ''
 }
