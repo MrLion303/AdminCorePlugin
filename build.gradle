@@ -8,15 +8,30 @@ version = '1.0.0'
 repositories {
     mavenCentral()
     maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
 }
 
+def target = project.findProperty('target') ?: '1.20'
+
+def apiVersions = [
+        '1.20': [dependency: 'org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT', java: 17, api: '1.20', label: '1.20.x'],
+        '1.21': [dependency: 'org.spigotmc:spigot-api:1.21.11-R0.1-SNAPSHOT', java: 21, api: '1.21', label: '1.21.x'],
+        '26.3': [dependency: 'io.papermc.paper:paper-api:26.3.build.152-beta', java: 25, api: '26.3', label: '26.3']
+ ]
+
+if (!apiVersions.containsKey(target)) {
+    throw new GradleException('Objetivo de compilacion no valido: ' + target)
+}
+
+def targetInfo = apiVersions[target]
+
 dependencies {
-    compileOnly 'org.spigotmc:spigot-api:1.20.1-R0.1-SNAPSHOT'
+    compileOnly targetInfo.dependency
 }
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(targetInfo.java)
     }
 }
 
@@ -26,6 +41,14 @@ tasks.withType(JavaCompile).configureEach {
 
 processResources {
     filesMatching('plugin.yml') {
-        expand(version: project.version)
+        expand(
+                version: project.version,
+                apiVersion: targetInfo.api,
+                targetLabel: targetInfo.label
+        )
     }
+}
+
+tasks.named('jar') {
+    archiveBaseName = 'AdminCorePlugin-' + targetInfo.label
 }
