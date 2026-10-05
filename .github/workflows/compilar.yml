@@ -1,0 +1,33 @@
+name: Compilar AdminCorePlugin
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Dar permisos a Gradle
+        run: chmod +x gradlew
+
+      - name: Compilar plugin
+        run: ./gradlew clean build --no-daemon
+
+      - name: Subir plugin compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: AdminCorePlugin
+          path: build/libs/*.jar
