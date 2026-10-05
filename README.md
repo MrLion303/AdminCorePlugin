@@ -1,0 +1,2 @@
+# AdminCorePlugin
+Plugin para moderación. 
