@@ -32,6 +32,8 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private final Set<UUID> vanished = new HashSet<>();
     private final Set<UUID> incognito = new HashSet<>();
     private final Set<UUID> hiddenNick = new HashSet<>();
+    private final Set<UUID> vanishAll = new HashSet<>();
+    private final Set<UUID> vanishTab = new HashSet<>();
     private final Map<UUID, String> nicknames = new HashMap<>();
     private final Map<UUID, Material> signMaterials = new HashMap<>();
     private final Map<UUID, Inventory> openedInventories = new HashMap<>();
@@ -173,7 +175,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         Player player = (Player) sender;
 
         switch (command.getName().toLowerCase(Locale.ROOT)) {
-            case "vanish" -> toggleVanish(player);
+            case "vanish" -> handleVanish(player, args);
             case "nick" -> handleNick(player, args);
             case "incognito" -> toggleIncognito(player);
             case "hidenick" -> toggleHiddenNick(player);
@@ -188,6 +190,10 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
 
 
     private void handleLanguage(Player player, String[] args) {
+        if (args.length == 1 && args[0].equalsIgnoreCase("help")) {
+            showHelp(player);
+            return;
+        }
         if (args.length != 2 || !args[0].equalsIgnoreCase("lenguage")) {
             message(player,
                     "&eUso: &f/admincore lenguage <español|English>",
@@ -210,16 +216,86 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         }
     }
 
-    private void toggleVanish(Player player) {
-        if (vanished.remove(player.getUniqueId())) {
-            for (Player target : Bukkit.getOnlinePlayers()) target.showPlayer(this, player);
-            message(player, "&aVanish desactivado.", "&aVanish disabled.");
-        } else {
-            vanished.add(player.getUniqueId());
-            for (Player target : Bukkit.getOnlinePlayers()) {
-                if (!target.isOp() || target.equals(player)) target.hidePlayer(this, player);
+    private void handleVanish(Player player, String[] args) {
+        UUID uuid = player.getUniqueId();
+
+        if (args.length == 0) {
+            if (vanished.remove(uuid)) {
+                updateVanishVisibility(player);
+                applyName(player);
+                message(player, "&aVanish desactivado.", "&aVanish disabled.");
+            } else {
+                vanished.add(uuid);
+                updateVanishVisibility(player);
+                applyName(player);
+                message(player, "&aVanish activado. &7Los jugadores no OP no podrán verte.",
+                        "&aVanish enabled. &7Non-OP players will not be able to see you.");
             }
-            message(player, "&aVanish activado. &7Los jugadores no OP no podrán verte.", "&aVanish enabled. &7Non-OP players will not be able to see you.");
+            return;
+        }
+
+        boolean hasAll = false;
+        boolean hasTab = false;
+        for (String arg : args) {
+            if (arg.equalsIgnoreCase("all")) hasAll = true;
+            else if (arg.equalsIgnoreCase("tab")) hasTab = true;
+            else {
+                message(player,
+                        "&eUso: &f/vanish &7| &f/vanish all &7| &f/vanish tab &7| &f/vanish all tab",
+                        "&eUsage: &f/vanish &7| &f/vanish all &7| &f/vanish tab &7| &f/vanish all tab");
+                return;
+            }
+        }
+
+        if (hasAll && hasTab) {
+            if (vanishAll.contains(uuid) && vanishTab.contains(uuid)) {
+                vanishAll.remove(uuid);
+                vanishTab.remove(uuid);
+                message(player, "&aVisibilidad para OP y nombre en tab restaurados.",
+                        "&aVisibility for OPs and tab name restored.");
+            } else {
+                vanishAll.add(uuid);
+                vanishTab.add(uuid);
+                message(player, "&aVanish configurado para ocultarte de todos y ocultar tu nombre en tab.",
+                        "&aVanish configured to hide you from everyone and hide your tab name.");
+            }
+        } else if (hasAll) {
+            if (vanishAll.remove(uuid)) {
+                message(player, "&aAhora los OP pueden verte en vanish.", "&aOPs can now see you in vanish.");
+            } else {
+                vanishAll.add(uuid);
+                message(player, "&aAhora nadie puede verte en vanish, ni siquiera los OP.",
+                        "&aNow nobody can see you in vanish, including OPs.");
+            }
+        } else {
+            if (vanishTab.remove(uuid)) {
+                message(player, "&aTu nombre vuelve a mostrarse en el tabulador.",
+                        "&aYour name is visible in the tab list again.");
+            } else {
+                vanishTab.add(uuid);
+                message(player, "&aTu nombre está oculto en el tabulador.",
+                        "&aYour name is hidden in the tab list.");
+            }
+        }
+
+        updateVanishVisibility(player);
+        applyName(player);
+    }
+
+    private void updateVanishVisibility(Player player) {
+        UUID uuid = player.getUniqueId();
+        if (!vanished.contains(uuid)) {
+            for (Player target : Bukkit.getOnlinePlayers()) {
+                target.showPlayer(this, player);
+            }
+            return;
+        }
+
+        boolean hideFromOps = vanishAll.contains(uuid);
+        for (Player target : Bukkit.getOnlinePlayers()) {
+            if (target.equals(player)) continue;
+            if (hideFromOps || !target.isOp()) target.hidePlayer(this, player);
+            else target.showPlayer(this, player);
         }
     }
 
@@ -305,7 +381,43 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         }
 
         player.setDisplayName(shown);
-        player.setPlayerListName(shown);
+        player.setPlayerListName(vanished.contains(uuid) && vanishTab.contains(uuid) ? "" : shown);
+    }
+
+    private void showHelp(Player player) {
+        boolean english = isEnglish(player);
+        message(player, english ? "&bComandos de AdminCore:" : "&bComandos de AdminCore:");
+        if (english) {
+            message(player, "&f/vanish &7- Hide from non-OP players.");
+            message(player, "&f/vanish all &7- Hide from everyone, including OPs.");
+            message(player, "&f/vanish tab &7- Hide your name in the tab list.");
+            message(player, "&f/vanish all tab &7- Combine both vanish options.");
+            message(player, "&f/nick <name|off> &7- Change or restore your displayed name.");
+            message(player, "&f/incognito &7- Use a changing random-style name.");
+            message(player, "&f/hidenick &7- Hide/show your name above your head.");
+            message(player, "&f/blockinfo &7- Show who placed the block you are looking at.");
+            message(player, "&f/invsee <player> &7- Open and edit a player's inventory.");
+            message(player, "&f/ecsee <player> &7- Open and edit a player's ender chest.");
+            message(player, "&f/sign "message" &7- Receive a sign with a saved message.");
+            message(player, "&f/setsign <material> &7- Set your default sign type.");
+            message(player, "&f/admincore lenguage <español|English> &7- Change your language.");
+            message(player, "&f/admincore help &7- Show this help.");
+        } else {
+            message(player, "&f/vanish &7- Ocultarte de jugadores que no sean OP.");
+            message(player, "&f/vanish all &7- Ocultarte de todos, incluidos los OP.");
+            message(player, "&f/vanish tab &7- Ocultar tu nombre del tabulador.");
+            message(player, "&f/vanish all tab &7- Combinar ambas opciones de vanish.");
+            message(player, "&f/nick <nombre|off> &7- Cambiar o restaurar tu nombre mostrado.");
+            message(player, "&f/incognito &7- Usar un nombre aleatorio que cambia.");
+            message(player, "&f/hidenick &7- Ocultar/mostrar tu nombre sobre la cabeza.");
+            message(player, "&f/blockinfo &7- Mostrar quién colocó el bloque que miras.");
+            message(player, "&f/invsee <jugador> &7- Abrir y editar el inventario de un jugador.");
+            message(player, "&f/ecsee <jugador> &7- Abrir y editar el ender chest de un jugador.");
+            message(player, "&f/sign "mensaje" &7- Recibir un letrero con un mensaje guardado.");
+            message(player, "&f/setsign <material> &7- Establecer tu tipo de letrero predeterminado.");
+            message(player, "&f/admincore lenguage <español|English> &7- Cambiar tu idioma.");
+            message(player, "&f/admincore help &7- Mostrar esta ayuda.");
+        }
     }
 
     private void showBlockInfo(Player player) {
@@ -385,9 +497,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             restoreVisuals(player);
             for (UUID uuid : vanished) {
                 Player vanishedPlayer = Bukkit.getPlayer(uuid);
-                if (vanishedPlayer != null && !player.isOp() && !player.equals(vanishedPlayer)) {
-                    player.hidePlayer(this, vanishedPlayer);
-                }
+                if (vanishedPlayer != null) updateVanishVisibility(vanishedPlayer);
             }
         });
     }
@@ -396,6 +506,8 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     public void onQuit(PlayerQuitEvent event) {
         UUID uuid = event.getPlayer().getUniqueId();
         vanished.remove(uuid);
+        vanishAll.remove(uuid);
+        vanishTab.remove(uuid);
         incognito.remove(uuid);
         hiddenNick.remove(uuid);
         nicknames.remove(uuid);
@@ -495,6 +607,24 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         if (!(sender instanceof Player player) || !player.isOp()) return Collections.emptyList();
 
         String name = command.getName().toLowerCase(Locale.ROOT);
+        if (name.equals("admincore") && args.length == 1) {
+            List<String> result = new ArrayList<>();
+            for (String option : Arrays.asList("lenguage", "help")) {
+                if (option.startsWith(args[0].toLowerCase(Locale.ROOT))) result.add(option);
+            }
+            return result;
+        }
+
+        if (name.equals("vanish") && args.length >= 1) {
+            List<String> result = new ArrayList<>();
+            for (String option : Arrays.asList("all", "tab")) {
+                if (option.startsWith(args[args.length - 1].toLowerCase(Locale.ROOT)) && !Arrays.asList(args).contains(option)) {
+                    result.add(option);
+                }
+            }
+            return result;
+        }
+
         if ((name.equals("invsee") || name.equals("ecsee") || name.equals("nick")) && args.length == 1) {
             List<String> result = new ArrayList<>();
             for (Player target : Bukkit.getOnlinePlayers()) {
