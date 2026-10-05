@@ -5,6 +5,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.NamespacedKey;
 import org.bukkit.command.*;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
@@ -12,6 +13,9 @@ import org.bukkit.event.*;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.block.Sign;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -34,6 +38,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private final Map<UUID, UUID> inventoryOwners = new HashMap<>();
     private final Map<UUID, Inventory> openedEnderChests = new HashMap<>();
     private final Map<UUID, UUID> enderChestOwners = new HashMap<>();
+    private NamespacedKey signMessageKey;
 
     private File dataFile;
     private YamlConfiguration data;
@@ -42,6 +47,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        signMessageKey = new NamespacedKey(this, "sign_message");
         loadData();
 
         String[] commands = {"vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign"};
@@ -277,6 +283,35 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         Player player = event.getPlayer();
         Block block = event.getBlockPlaced();
         placedBlocks.put(locationKey(block), player.getName());
+
+        ItemStack item = event.getItemInHand();
+        if (block.getState() instanceof Sign sign && item.hasItemMeta()) {
+            PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
+            String text = container.get(signMessageKey, PersistentDataType.STRING);
+            if (text != null) {
+                String[] lines = splitSignText(text);
+                for (int i = 0; i < 4; i++) {
+                    sign.setLine(i, lines[i]);
+                }
+                sign.update(true, false);
+            }
+        }
+    }
+
+    private String[] splitSignText(String text) {
+        String[] lines = {"", "", "", ""};
+        String remaining = ChatColor.stripColor(text);
+        for (int i = 0; i < 4 && !remaining.isEmpty(); i++) {
+            if (remaining.length() <= 15) {
+                lines[i] = remaining;
+                break;
+            }
+            int cut = remaining.lastIndexOf(' ', 15);
+            if (cut <= 0) cut = 15;
+            lines[i] = remaining.substring(0, cut);
+            remaining = remaining.substring(cut).trim();
+        }
+        return lines;
     }
 
     @EventHandler
@@ -364,6 +399,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         if (meta != null) {
             meta.setDisplayName(color("&bLetrero: &f" + text));
             meta.setLore(Collections.singletonList(color("&7Mensaje: &f" + text)));
+            meta.getPersistentDataContainer().set(signMessageKey, PersistentDataType.STRING, text);
             sign.setItemMeta(meta);
         }
 
