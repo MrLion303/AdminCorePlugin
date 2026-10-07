@@ -20,6 +20,7 @@ Todos los comandos administrativos requieren ser **OP**.
 | `/incognito` | Activa o desactiva un nombre aleatorio de incógnito. |
 | `/hidenick` | Oculta o muestra el nombre sobre la cabeza del jugador. |
 | `/blockinfo` | Muestra quién colocó el bloque que estás mirando, si está registrado. |
+| `/chesthistory` | Muestra las últimas 10 veces que se abrió el cofre que estás mirando, con el nombre del jugador y la fecha/hora. |
 | `/invsee <jugador>` | Abre y permite editar el inventario de un jugador conectado. |
 | `/ecsee <jugador>` | Abre y permite editar el Ender Chest de un jugador conectado. |
 | `/sign "mensaje"` | Recibe un letrero que guarda el mensaje indicado para colocarlo después. |
