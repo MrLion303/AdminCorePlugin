@@ -55,7 +55,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         signMessageKey = new NamespacedKey(this, "sign_message");
         loadData();
 
-        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign"};
+        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign", "help", "plugins"};
         for (String name : commands) {
             PluginCommand command = getCommand(name);
             if (command != null) {
@@ -171,10 +171,22 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             return true;
         }
 
+        String commandName = command.getName().toLowerCase(Locale.ROOT);
+
+        if (commandName.equals("help")) {
+            handleAdminHelp(sender, args);
+            return true;
+        }
+
+        if (commandName.equals("plugins")) {
+            handlePlugins(sender);
+            return true;
+        }
+
         if (!isAdmin(sender)) return true;
         Player player = (Player) sender;
 
-        switch (command.getName().toLowerCase(Locale.ROOT)) {
+        switch (commandName) {
             case "vanish" -> handleVanish(player, args);
             case "nick" -> handleNick(player, args);
             case "incognito" -> toggleIncognito(player);
@@ -186,6 +198,40 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             case "setsign" -> setSign(player, args);
         }
         return true;
+    }
+
+
+    private void handleAdminHelp(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage(color("&cEste comando solo puede usarlo un jugador."));
+            return;
+        }
+
+        if (args.length == 0) {
+            player.sendMessage(color("&eUso: &f/help <mensaje>"));
+            return;
+        }
+
+        String message = String.join(" ", args);
+        String formatted = color("&a[" + player.getName() + "] dice: &f" + message);
+
+        for (Player target : Bukkit.getOnlinePlayers()) {
+            if (target.isOp()) target.sendMessage(formatted);
+        }
+    }
+
+    private void handlePlugins(CommandSender sender) {
+        if (!(sender instanceof Player player) || !player.isOp()) {
+            sender.sendMessage(color("&cNo tienes permisos suficientes."));
+            return;
+        }
+
+        List<String> pluginNames = new ArrayList<>();
+        for (org.bukkit.plugin.Plugin plugin : Bukkit.getPluginManager().getPlugins()) {
+            if (plugin.isEnabled()) pluginNames.add(plugin.getName());
+        }
+
+        player.sendMessage(color("&aPlugins (" + pluginNames.size() + "): &f" + String.join("&7, &f", pluginNames)));
     }
 
 
