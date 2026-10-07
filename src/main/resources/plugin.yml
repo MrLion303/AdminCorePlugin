@@ -25,6 +25,9 @@ commands:
   blockinfo:
     description: Muestra quien coloco el bloque que estas mirando.
     usage: /blockinfo
+  chesthistory:
+    description: Muestra las ultimas 10 aperturas del cofre que estas mirando.
+    usage: /chesthistory
   invsee:
     description: Abre el inventario de un jugador.
     usage: /invsee <jugador>
