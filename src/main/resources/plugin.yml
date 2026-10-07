@@ -37,6 +37,9 @@ commands:
   setsign:
     description: Establece tu letrero predeterminado.
     usage: /setsign <material>
+  admin:
+    description: Herramientas administrativas.
+    usage: /admin <freeze|unfreeze> <jugador>
 
 permissions:
   admincore.admin:
