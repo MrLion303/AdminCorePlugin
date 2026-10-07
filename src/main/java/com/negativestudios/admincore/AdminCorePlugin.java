@@ -30,6 +30,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public final class AdminCorePlugin extends JavaPlugin implements Listener, CommandExecutor, TabCompleter {
     private final Set<UUID> vanished = new HashSet<>();
+    private final Set<UUID> frozen = new HashSet<>();
     private final Set<UUID> incognito = new HashSet<>();
     private final Set<UUID> hiddenNick = new HashSet<>();
     private final Set<UUID> vanishAll = new HashSet<>();
@@ -55,7 +56,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         signMessageKey = new NamespacedKey(this, "sign_message");
         loadData();
 
-        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign", "help", "plugins"};
+        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign", "help", "plugins", "admin"};
         for (String name : commands) {
             PluginCommand command = getCommand(name);
             if (command != null) {
@@ -183,6 +184,12 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             return true;
         }
 
+        if (commandName.equals("admin")) {
+            if (!isAdmin(sender)) return true;
+            handleAdmin(playerFrom(sender), args);
+            return true;
+        }
+
         if (!isAdmin(sender)) return true;
         Player player = (Player) sender;
 
@@ -200,6 +207,53 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         return true;
     }
 
+
+    private Player playerFrom(CommandSender sender) {
+        return (Player) sender;
+    }
+
+    private void handleAdmin(Player player, String[] args) {
+        if (args.length != 2 || (!args[0].equalsIgnoreCase("freeze") && !args[0].equalsIgnoreCase("unfreeze"))) {
+            message(player, "&eUso: &f/admin freeze <jugador> &7o &f/admin unfreeze <jugador>",
+                    "&eUsage: &f/admin freeze <player> &7or &f/admin unfreeze <player>");
+            return;
+        }
+
+        Player target = Bukkit.getPlayerExact(args[1]);
+        if (target == null) {
+            message(player, "&cEse jugador no está conectado.", "&cThat player is not online.");
+            return;
+        }
+
+        UUID uuid = target.getUniqueId();
+        if (args[0].equalsIgnoreCase("freeze")) {
+            if (frozen.add(uuid)) {
+                message(player, "&aHas congelado a &f" + target.getName() + "&a.", "&aYou froze &f" + target.getName() + "&a.");
+                message(target, "&cHas sido congelado por un administrador.", "&cYou have been frozen by an administrator.");
+            } else {
+                message(player, "&eEse jugador ya está congelado.", "&eThat player is already frozen.");
+            }
+        } else {
+            if (frozen.remove(uuid)) {
+                message(player, "&aHas descongelado a &f" + target.getName() + "&a.", "&aYou unfroze &f" + target.getName() + "&a.");
+                message(target, "&aHas sido descongelado.", "&aYou have been unfrozen.");
+            } else {
+                message(player, "&eEse jugador no está congelado.", "&eThat player is not frozen.");
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onFrozenMove(PlayerMoveEvent event) {
+        Player player = event.getPlayer();
+        if (!frozen.contains(player.getUniqueId())) return;
+
+        if (event.getFrom().getX() != event.getTo().getX()
+                || event.getFrom().getY() != event.getTo().getY()
+                || event.getFrom().getZ() != event.getTo().getZ()) {
+            event.setTo(event.getFrom());
+        }
+    }
 
     private void handleAdminHelp(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -735,6 +789,27 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
                 }
             }
             if (name.equals("nick") && "off".startsWith(args[0].toLowerCase(Locale.ROOT))) result.add("off");
+            return result;
+        }
+
+        if (name.equals("admin") && args.length == 2) {
+            if (args[0].equalsIgnoreCase("freeze") || args[0].equalsIgnoreCase("unfreeze")) {
+                List<String> result = new ArrayList<>();
+                for (Player target : Bukkit.getOnlinePlayers()) {
+                    if (target.getName().toLowerCase(Locale.ROOT).startsWith(args[1].toLowerCase(Locale.ROOT))) {
+                        result.add(target.getName());
+                    }
+                }
+                return result;
+            }
+            return Collections.emptyList();
+        }
+
+        if (name.equals("admin") && args.length == 1) {
+            List<String> result = new ArrayList<>();
+            for (String option : Arrays.asList("freeze", "unfreeze")) {
+                if (option.startsWith(args[0].toLowerCase(Locale.ROOT))) result.add(option);
+            }
             return result;
         }
 
