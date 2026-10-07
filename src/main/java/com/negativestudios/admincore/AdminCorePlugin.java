@@ -11,6 +11,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.inventory.DoubleChestInventory;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -50,6 +52,9 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private File dataFile;
     private YamlConfiguration data;
     private final Map<String, String> placedBlocks = new HashMap<>();
+    private final Map<String, Deque<ChestOpenRecord>> chestHistory = new HashMap<>();
+
+    private record ChestOpenRecord(String player, long timestamp) {}
 
     @Override
     public void onEnable() {
@@ -57,7 +62,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         signMessageKey = new NamespacedKey(this, "sign_message");
         loadData();
 
-        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "invsee", "ecsee", "sign", "setsign", "help", "plugins", "admin"};
+        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "chesthistory", "invsee", "ecsee", "sign", "setsign", "help", "plugins", "admin"};
         for (String name : commands) {
             PluginCommand command = getCommand(name);
             if (command != null) {
@@ -89,6 +94,24 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             placedBlocks.put(key, data.getString("placed-blocks." + key));
         }
 
+        if (data.getConfigurationSection("chest-history") != null) {
+            for (String key : data.getConfigurationSection("chest-history").getKeys(false)) {
+                List<?> entries = data.getList("chest-history." + key);
+                if (entries == null) continue;
+                Deque<ChestOpenRecord> history = new ArrayDeque<>();
+                for (Object entry : entries) {
+                    if (!(entry instanceof Map<?, ?> map)) continue;
+                    Object playerName = map.get("player");
+                    Object timestamp = map.get("timestamp");
+                    if (playerName instanceof String name && timestamp instanceof Number time) {
+                        history.addLast(new ChestOpenRecord(name, time.longValue()));
+                    }
+                }
+                while (history.size() > 10) history.removeFirst();
+                if (!history.isEmpty()) chestHistory.put(key, history);
+            }
+        }
+
         for (String key : data.getConfigurationSection("sign-defaults") == null
                 ? Collections.<String>emptyList()
                 : data.getConfigurationSection("sign-defaults").getKeys(false)) {
@@ -118,6 +141,17 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         }
         for (Map.Entry<UUID, Language> entry : languages.entrySet()) {
             data.set("languages." + entry.getKey(), entry.getValue().name());
+        }
+
+        for (Map.Entry<String, Deque<ChestOpenRecord>> entry : chestHistory.entrySet()) {
+            List<Map<String, Object>> history = new ArrayList<>();
+            for (ChestOpenRecord record : entry.getValue()) {
+                Map<String, Object> saved = new LinkedHashMap<>();
+                saved.put("player", record.player());
+                saved.put("timestamp", record.timestamp());
+                history.add(saved);
+            }
+            data.set("chest-history." + entry.getKey(), history);
         }
         try {
             data.save(dataFile);
@@ -200,6 +234,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             case "incognito" -> toggleIncognito(player);
             case "hidenick" -> toggleHiddenNick(player);
             case "blockinfo" -> showBlockInfo(player);
+            case "chesthistory" -> showChestHistory(player);
             case "invsee" -> openInventory(player, args);
             case "ecsee" -> openEnderChest(player, args);
             case "sign" -> giveSign(player, args);
@@ -568,6 +603,63 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
     }
 
+    private void showChestHistory(Player player) {
+        Block block = getTargetBlock(player, 100);
+        if (block == null || (block.getType() != Material.CHEST && block.getType() != Material.TRAPPED_CHEST)) {
+            message(player, "&cDebes estar mirando un cofre válido.", "&cYou must be looking at a valid chest.");
+            return;
+        }
+
+        Deque<ChestOpenRecord> history = chestHistory.get(locationKey(block));
+        player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+        player.sendMessage(color("&b&l✦ ADMINCORE &8» &f&lHISTORIAL DEL COFRE"));
+        player.sendMessage(color("&7Cofre: &f" + block.getType().name()));
+
+        if (history == null || history.isEmpty()) {
+            player.sendMessage(color("&7No hay aperturas registradas para este cofre."));
+        } else {
+            int number = 1;
+            List<ChestOpenRecord> entries = new ArrayList<>(history);
+            Collections.reverse(entries);
+            for (ChestOpenRecord record : entries) {
+                String time = new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(new Date(record.timestamp()));
+                player.sendMessage(color("&8▸ &b#" + number + " &f" + record.player() + " &8— &7" + time));
+                number++;
+            }
+        }
+
+        player.sendMessage(color("&8&m━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onChestOpen(InventoryOpenEvent event) {
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!(event.getInventory() instanceof DoubleChestInventory doubleChest)) {
+            if (event.getInventory().getHolder() instanceof org.bukkit.block.Chest chest) {
+                recordChestOpen(chest.getBlock(), player);
+            }
+            return;
+        }
+
+        if (doubleChest.getLeftSide() instanceof org.bukkit.block.Chest left) {
+            recordChestOpen(left.getBlock(), player);
+        }
+        if (doubleChest.getRightSide() instanceof org.bukkit.block.Chest right) {
+            recordChestOpen(right.getBlock(), player);
+        }
+    }
+
+    private void recordChestOpen(Block block, Player player) {
+        if (block.getType() != Material.CHEST && block.getType() != Material.TRAPPED_CHEST) return;
+
+        String key = locationKey(block);
+        Deque<ChestOpenRecord> history = chestHistory.computeIfAbsent(key, ignored -> new ArrayDeque<>());
+        history.addLast(new ChestOpenRecord(player.getName(), System.currentTimeMillis()));
+        while (history.size() > 10) history.removeFirst();
+
+        saveData();
+    }
+
     private void showBlockInfo(Player player) {
         Block block = getTargetBlock(player, 100);
         if (block == null || block.getType().isAir()) {
@@ -780,6 +872,10 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
                 }
             }
             return result;
+        }
+
+        if (name.equals("chesthistory")) {
+            return Collections.emptyList();
         }
 
         if ((name.equals("invsee") || name.equals("ecsee") || name.equals("nick")) && args.length == 1) {
