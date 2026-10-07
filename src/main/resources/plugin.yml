@@ -42,3 +42,10 @@ permissions:
   admincore.admin:
     default: op
     description: Acceso completo a AdminCorePlugin.
+
+  help:
+    description: Envía un mensaje privado a todos los jugadores OP.
+    usage: /help <mensaje>
+  plugins:
+    description: Muestra los plugins instalados.
+    usage: /plugins
