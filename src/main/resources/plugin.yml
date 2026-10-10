@@ -34,12 +34,6 @@ commands:
   ecsee:
     description: Abre el ender chest de un jugador.
     usage: /ecsee <jugador>
-  sign:
-    description: Recibe un letrero con un mensaje.
-    usage: /sign "mensaje"
-  setsign:
-    description: Establece tu letrero predeterminado.
-    usage: /setsign <material>
   admin:
     description: Herramientas administrativas.
     usage: /admin <freeze|unfreeze> <jugador>
