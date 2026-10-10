@@ -11,6 +11,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.DoubleChestInventory;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -53,6 +54,7 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private YamlConfiguration data;
     private final Map<String, String> placedBlocks = new HashMap<>();
     private final Map<String, Deque<ChestOpenRecord>> chestHistory = new HashMap<>();
+    private final Map<UUID, String> pendingSignMessages = new HashMap<>();
 
     private record ChestOpenRecord(String player, long timestamp) {}
 
@@ -705,12 +707,24 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
             String text = container.get(signMessageKey, PersistentDataType.STRING);
             if (text != null) {
+                pendingSignMessages.put(player.getUniqueId(), text);
                 String[] lines = splitSignText(text);
                 for (int i = 0; i < 4; i++) {
                     sign.setLine(i, lines[i]);
                 }
                 sign.update(true, false);
             }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onSignChange(SignChangeEvent event) {
+        String text = pendingSignMessages.remove(event.getPlayer().getUniqueId());
+        if (text == null) return;
+
+        String[] lines = splitSignText(text);
+        for (int i = 0; i < Math.min(4, event.getLines().length); i++) {
+            event.setLine(i, lines[i]);
         }
     }
 
