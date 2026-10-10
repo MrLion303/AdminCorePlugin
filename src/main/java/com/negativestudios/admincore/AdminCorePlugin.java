@@ -5,21 +5,16 @@ import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
-import org.bukkit.NamespacedKey;
 import org.bukkit.command.*;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.*;
 import org.bukkit.event.block.BlockPlaceEvent;
-import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.inventory.DoubleChestInventory;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.persistence.PersistentDataContainer;
-import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.block.Sign;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -40,13 +35,11 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private final Set<UUID> vanishAll = new HashSet<>();
     private final Set<UUID> vanishTab = new HashSet<>();
     private final Map<UUID, String> nicknames = new HashMap<>();
-    private final Map<UUID, Material> signMaterials = new HashMap<>();
     private final Map<UUID, Inventory> openedInventories = new HashMap<>();
     private final Map<UUID, UUID> inventoryOwners = new HashMap<>();
     private final Map<UUID, Inventory> openedEnderChests = new HashMap<>();
     private final Map<UUID, UUID> enderChestOwners = new HashMap<>();
     private final Map<UUID, Language> languages = new HashMap<>();
-    private NamespacedKey signMessageKey;
 
     private enum Language { SPANISH, ENGLISH }
 
@@ -54,17 +47,15 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
     private YamlConfiguration data;
     private final Map<String, String> placedBlocks = new HashMap<>();
     private final Map<String, Deque<ChestOpenRecord>> chestHistory = new HashMap<>();
-    private final Map<UUID, String> pendingSignMessages = new HashMap<>();
 
     private record ChestOpenRecord(String player, long timestamp) {}
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
-        signMessageKey = new NamespacedKey(this, "sign_message");
         loadData();
 
-        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "chesthistory", "invsee", "ecsee", "sign", "setsign", "help", "plugins", "admin"};
+        String[] commands = {"admincore", "vanish", "nick", "incognito", "hidenick", "blockinfo", "chesthistory", "invsee", "ecsee", "help", "plugins", "admin"};
         for (String name : commands) {
             PluginCommand command = getCommand(name);
             if (command != null) {
@@ -114,15 +105,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             }
         }
 
-        for (String key : data.getConfigurationSection("sign-defaults") == null
-                ? Collections.<String>emptyList()
-                : data.getConfigurationSection("sign-defaults").getKeys(false)) {
-            try {
-                signMaterials.put(UUID.fromString(key), Material.valueOf(data.getString("sign-defaults." + key)));
-            } catch (Exception ignored) {
-            }
-        }
-
         if (data.getConfigurationSection("languages") != null) {
             for (String key : data.getConfigurationSection("languages").getKeys(false)) {
                 try {
@@ -137,9 +119,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         if (data == null) return;
         for (Map.Entry<String, String> entry : placedBlocks.entrySet()) {
             data.set("placed-blocks." + entry.getKey(), entry.getValue());
-        }
-        for (Map.Entry<UUID, Material> entry : signMaterials.entrySet()) {
-            data.set("sign-defaults." + entry.getKey(), entry.getValue().name());
         }
         for (Map.Entry<UUID, Language> entry : languages.entrySet()) {
             data.set("languages." + entry.getKey(), entry.getValue().name());
@@ -239,8 +218,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             case "chesthistory" -> showChestHistory(player);
             case "invsee" -> openInventory(player, args);
             case "ecsee" -> openEnderChest(player, args);
-            case "sign" -> giveSign(player, args);
-            case "setsign" -> setSign(player, args);
         }
         return true;
     }
@@ -544,8 +521,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
                 {"/blockinfo", "Mostrar quién colocó el bloque que miras."},
                 {"/invsee <jugador>", "Abrir y editar el inventario de un jugador."},
                 {"/ecsee <jugador>", "Abrir y editar el ender chest de un jugador."},
-                {"/sign \"mensaje\"", "Recibir un letrero con un mensaje guardado."},
-                {"/setsign <material>", "Establecer tu tipo de letrero predeterminado."},
                 {"/admincore lenguage <español|English>", "Cambiar tu idioma."},
                 {"/admincore help [página]", "Mostrar la ayuda paginada."}
         };
@@ -561,8 +536,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
                 {"/blockinfo", "Show who placed the block you are looking at."},
                 {"/invsee <player>", "Open and edit a player's inventory."},
                 {"/ecsee <player>", "Open and edit a player's ender chest."},
-                {"/sign \"message\"", "Receive a sign with a saved message."},
-                {"/setsign <material>", "Set your default sign type."},
                 {"/admincore lenguage <español|English>", "Change your language."},
                 {"/admincore help [page]", "Show the paginated help."}
         };
@@ -701,63 +674,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         Player player = event.getPlayer();
         Block block = event.getBlockPlaced();
         placedBlocks.put(locationKey(block), player.getName());
-
-        ItemStack item = event.getItemInHand();
-        if (block.getState() instanceof Sign sign && item.hasItemMeta()) {
-            PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
-            String text = container.get(signMessageKey, PersistentDataType.STRING);
-            if (text != null) {
-                UUID playerId = player.getUniqueId();
-                pendingSignMessages.put(playerId, text);
-
-                // El estado del letrero puede ser sobrescrito por el editor vanilla al colocarlo.
-                // Aplicamos el texto en el siguiente tick, cuando el bloque ya está asentado.
-                Bukkit.getScheduler().runTask(this, () -> applySignText(block, text));
-
-                // Limpia el mensaje pendiente si el jugador nunca llega a enviar el formulario.
-                Bukkit.getScheduler().runTaskLater(this, () -> {
-                    if (text.equals(pendingSignMessages.get(playerId))) {
-                        pendingSignMessages.remove(playerId);
-                    }
-                }, 1200L);
-            }
-        }
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onSignChange(SignChangeEvent event) {
-        String text = pendingSignMessages.remove(event.getPlayer().getUniqueId());
-        if (text == null) return;
-
-        // Evita que el formulario vacío del cliente reemplace el mensaje del comando.
-        event.setCancelled(true);
-        Bukkit.getScheduler().runTask(this, () -> applySignText(event.getBlock(), text));
-    }
-
-    private void applySignText(Block block, String text) {
-        if (!(block.getState() instanceof Sign sign)) return;
-
-        String[] lines = splitSignText(text);
-        for (int i = 0; i < 4; i++) {
-            sign.setLine(i, lines[i]);
-        }
-        sign.update(true, false);
-    }
-
-    private String[] splitSignText(String text) {
-        String[] lines = {"", "", "", ""};
-        String remaining = ChatColor.stripColor(text);
-        for (int i = 0; i < 4 && !remaining.isEmpty(); i++) {
-            if (remaining.length() <= 15) {
-                lines[i] = remaining;
-                break;
-            }
-            int cut = remaining.lastIndexOf(' ', 15);
-            if (cut <= 0) cut = 15;
-            lines[i] = remaining.substring(0, cut);
-            remaining = remaining.substring(cut).trim();
-        }
-        return lines;
     }
 
     @EventHandler
@@ -828,50 +744,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
         message(viewer, "&aEnder chest de &f" + target.getName() + "&a abierto.", "&aEnder chest of &f" + target.getName() + "&a opened.");
     }
 
-    private void giveSign(Player player, String[] args) {
-        if (args.length == 0) {
-            message(player, "&eUso: &f/sign \"mensaje\"");
-            return;
-        }
-
-        String text = String.join(" ", args);
-        if (text.startsWith("\"") && text.endsWith("\"") && text.length() >= 2) {
-            text = text.substring(1, text.length() - 1);
-        }
-
-        Material material = signMaterials.getOrDefault(player.getUniqueId(), Material.OAK_SIGN);
-        ItemStack sign = new ItemStack(material);
-        var meta = sign.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(color("&bLetrero: &f" + text));
-            meta.setLore(Collections.singletonList(color("&7Mensaje: &f" + text)));
-            meta.getPersistentDataContainer().set(signMessageKey, PersistentDataType.STRING, text);
-            sign.setItemMeta(meta);
-        }
-
-        player.getInventory().addItem(sign);
-        message(player, "&aHas recibido un &f" + material.name() + "&a.", "&aYou received a &f" + material.name() + "&a.");
-    }
-
-    private void setSign(Player player, String[] args) {
-        if (args.length != 1) {
-            message(player, "&eUso: &f/setsign <material>", "&eUsage: &f/setsign <material>");
-            return;
-        }
-
-        String input = args[0].toUpperCase(Locale.ROOT);
-        Material material = Material.matchMaterial(input);
-
-        if (material == null || !material.name().endsWith("_SIGN")) {
-            message(player, "&cEse material no es un letrero válido.", "&cThat material is not a valid sign.");
-            return;
-        }
-
-        signMaterials.put(player.getUniqueId(), material);
-        saveData();
-        message(player, "&aTu letrero predeterminado ahora es &f" + material.name() + "&a.", "&aYour default sign is now &f" + material.name() + "&a.");
-    }
-
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (!(sender instanceof Player player) || !player.isOp()) return Collections.emptyList();
@@ -936,17 +808,6 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             List<String> result = new ArrayList<>();
             for (String option : Arrays.asList("freeze", "unfreeze")) {
                 if (option.startsWith(args[0].toLowerCase(Locale.ROOT))) result.add(option);
-            }
-            return result;
-        }
-
-        if (name.equals("setsign") && args.length == 1) {
-            List<String> result = new ArrayList<>();
-            for (Material material : Material.values()) {
-                if (material.name().endsWith("_SIGN") &&
-                        material.name().toLowerCase(Locale.ROOT).startsWith(args[0].toLowerCase(Locale.ROOT))) {
-                    result.add(material.name().toLowerCase(Locale.ROOT));
-                }
             }
             return result;
         }
