@@ -23,8 +23,6 @@ Todos los comandos administrativos requieren ser **OP**.
 | `/chesthistory` | Muestra las últimas 10 veces que se abrió el cofre que estás mirando, con el nombre del jugador y la fecha/hora. |
 | `/invsee <jugador>` | Abre y permite editar el inventario de un jugador conectado. |
 | `/ecsee <jugador>` | Abre y permite editar el Ender Chest de un jugador conectado. |
-| `/sign "mensaje"` | Recibe un letrero que guarda el mensaje indicado para colocarlo después. |
-| `/setsign <material>` | Establece el tipo de letrero predeterminado que entrega `/sign`. |
 | `/admin freeze <jugador>` | Congela a un jugador para impedir que se mueva. |
 | `/admin unfreeze <jugador>` | Descongela a un jugador para permitirle volver a moverse. |
 | `/help <mensaje>` | Envía el mensaje en el chat a todos los jugadores OP, mostrando el nombre real del administrador que lo envió. |
