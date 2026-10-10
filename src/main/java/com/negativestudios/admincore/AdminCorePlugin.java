@@ -707,25 +707,41 @@ public final class AdminCorePlugin extends JavaPlugin implements Listener, Comma
             PersistentDataContainer container = item.getItemMeta().getPersistentDataContainer();
             String text = container.get(signMessageKey, PersistentDataType.STRING);
             if (text != null) {
-                pendingSignMessages.put(player.getUniqueId(), text);
-                String[] lines = splitSignText(text);
-                for (int i = 0; i < 4; i++) {
-                    sign.setLine(i, lines[i]);
-                }
-                sign.update(true, false);
+                UUID playerId = player.getUniqueId();
+                pendingSignMessages.put(playerId, text);
+
+                // El estado del letrero puede ser sobrescrito por el editor vanilla al colocarlo.
+                // Aplicamos el texto en el siguiente tick, cuando el bloque ya está asentado.
+                Bukkit.getScheduler().runTask(this, () -> applySignText(block, text));
+
+                // Limpia el mensaje pendiente si el jugador nunca llega a enviar el formulario.
+                Bukkit.getScheduler().runTaskLater(this, () -> {
+                    if (text.equals(pendingSignMessages.get(playerId))) {
+                        pendingSignMessages.remove(playerId);
+                    }
+                }, 1200L);
             }
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onSignChange(SignChangeEvent event) {
         String text = pendingSignMessages.remove(event.getPlayer().getUniqueId());
         if (text == null) return;
 
+        // Evita que el formulario vacío del cliente reemplace el mensaje del comando.
+        event.setCancelled(true);
+        Bukkit.getScheduler().runTask(this, () -> applySignText(event.getBlock(), text));
+    }
+
+    private void applySignText(Block block, String text) {
+        if (!(block.getState() instanceof Sign sign)) return;
+
         String[] lines = splitSignText(text);
-        for (int i = 0; i < Math.min(4, event.getLines().length); i++) {
-            event.setLine(i, lines[i]);
+        for (int i = 0; i < 4; i++) {
+            sign.setLine(i, lines[i]);
         }
+        sign.update(true, false);
     }
 
     private String[] splitSignText(String text) {
